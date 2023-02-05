@@ -1,3 +1,4 @@
+use num::integer::div_floor;
 use sscanf::sscanf;
 use sscanf::RegexRepresentation;
 use std::num::ParseIntError;
@@ -83,17 +84,17 @@ struct Monkey {
 
 impl Monkey {
     pub fn new(instring: &str) -> Result<Self, sscanf::Error> {
-        let (
-                _,
-                items_str,
-                expr1, op, expr2,
-                test_mod,
-                true_monkey,
-                false_monkey
-        ) = sscanf!(
-            instring,
-            "Monkey {usize}:\n  Starting items: {str}\n  Operation: new = {Expr} {Op} {Expr}\n  Test: divisible by {u32}\n    If true: throw to monkey {usize}\n    If false: throw to monkey {usize}\n\n"
-        )?;
+        let lines: Vec<_> = instring.lines().collect();
+        let items_str =
+            sscanf!(lines[1], "  Starting items: {str}").expect("There should be an items list");
+        let (expr1, op, expr2) = sscanf!(lines[2], "  Operation: new = {Expr} {Op} {Expr}")
+            .expect("There should be an operation");
+        let test_mod =
+            sscanf!(lines[3], "  Test: divisible by {u32}").expect("There should be a test");
+        let true_monkey_index = sscanf!(lines[4], "    If true: throw to monkey {usize}")
+            .expect("There should be a true monkey");
+        let false_monkey_index = sscanf!(lines[5], "    If false: throw to monkey {usize}")
+            .expect("There should be a false monkey");
 
         Ok(Monkey {
             items: items_str
@@ -102,22 +103,22 @@ impl Monkey {
                 .map(Result::unwrap)
                 .collect(),
             operation: Box::new(move |old: Item| op.on(expr1.or(old), expr2.or(old))),
-            test_mod: test_mod,
+            test_mod,
             num_inspections: 0,
-            true_monkey_index: true_monkey,
-            false_monkey_index: false_monkey,
+            true_monkey_index,
+            false_monkey_index,
         })
     }
 
     pub fn inspect_next(&mut self) -> Option<ThrownItem> {
         let old = self.items.pop()?;
-        let new = (self.operation)(old);
+        let new = div_floor((self.operation)(old), 3);
 
         self.num_inspections += 1;
 
         Some(ThrownItem {
             item: new,
-            to_monkey: match old % self.test_mod == 0 {
+            to_monkey: match new % self.test_mod == 0 {
                 true => self.true_monkey_index,
                 false => self.false_monkey_index,
             },
@@ -166,11 +167,33 @@ impl Monkey {
 ///         "    If false: throw to monkey 1"
 /// )));
 /// ```
-pub fn monkey_business(input: &str) -> usize {
-    let monkeys: Vec<Monkey> = input
+pub fn monkey_business(input: &str) -> u32 {
+    let mut monkeys: Vec<Monkey> = input
         .split("\n\n")
+        .filter(|s| !s.is_empty())
         .map(Monkey::new)
-        .map(Result::unwrap)
+        .map(|m| m.expect("This should produce a valid Monkey"))
         .collect();
-    todo!();
+
+    for _ in 0..20 {
+        for i in 0..monkeys.len() {
+            let (left, big_right) = monkeys.split_at_mut(i);
+            let (monkey, right) = big_right.split_at_mut(1);
+            let mut other_monkey: &mut Monkey;
+            while let Some(ThrownItem { item, to_monkey }) = monkey[0].inspect_next() {
+                if to_monkey < i {
+                    other_monkey = &mut left[to_monkey]
+                } else {
+                    other_monkey = &mut right[to_monkey - (i + 1)]
+                }
+
+                other_monkey.catch(item);
+            }
+        }
+    }
+
+    let mut inspections: Vec<_> = monkeys.iter().map(|m| m.num_inspections).collect();
+    inspections.sort();
+    inspections.reverse();
+    inspections[0..=1].iter().product()
 }
