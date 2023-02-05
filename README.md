@@ -1,1 +1,1 @@
-# advent-of-code-2022-11
+Solves https://adventofcode.com/2022/day/11
