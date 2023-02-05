@@ -1,10 +1,9 @@
-use num::integer::div_floor;
 use sscanf::sscanf;
 use sscanf::RegexRepresentation;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
-type Item = u32;
+type Item = usize;
 
 enum Op {
     Times,
@@ -76,7 +75,7 @@ struct ThrownItem {
 struct Monkey {
     items: Vec<Item>,
     operation: Box<dyn Fn(Item) -> Item>,
-    test_mod: u32,
+    test_mod: usize,
     num_inspections: u32,
     true_monkey_index: usize,
     false_monkey_index: usize,
@@ -90,7 +89,7 @@ impl Monkey {
         let (expr1, op, expr2) = sscanf!(lines[2], "  Operation: new = {Expr} {Op} {Expr}")
             .expect("There should be an operation");
         let test_mod =
-            sscanf!(lines[3], "  Test: divisible by {u32}").expect("There should be a test");
+            sscanf!(lines[3], "  Test: divisible by {usize}").expect("There should be a test");
         let true_monkey_index = sscanf!(lines[4], "    If true: throw to monkey {usize}")
             .expect("There should be a true monkey");
         let false_monkey_index = sscanf!(lines[5], "    If false: throw to monkey {usize}")
@@ -110,9 +109,9 @@ impl Monkey {
         })
     }
 
-    pub fn inspect_next(&mut self) -> Option<ThrownItem> {
+    pub fn inspect_next(&mut self, modulo: usize) -> Option<ThrownItem> {
         let old = self.items.pop()?;
-        let new = div_floor((self.operation)(old), 3);
+        let new = (self.operation)(old) % modulo;
 
         self.num_inspections += 1;
 
@@ -136,7 +135,7 @@ impl Monkey {
 /// use advent_of_code_2022_11::monkey_business;
 ///
 /// assert_eq!(
-///     10605,
+///     2713310158,
 ///     monkey_business(concat!(
 ///         "Monkey 0:\n",
 ///         "  Starting items: 79, 98\n",
@@ -165,9 +164,9 @@ impl Monkey {
 ///         "  Test: divisible by 17\n",
 ///         "    If true: throw to monkey 0\n",
 ///         "    If false: throw to monkey 1"
-/// )));
+/// ), 10000));
 /// ```
-pub fn monkey_business(input: &str) -> u32 {
+pub fn monkey_business(input: &str, n_rounds: u32) -> usize {
     let mut monkeys: Vec<Monkey> = input
         .split("\n\n")
         .filter(|s| !s.is_empty())
@@ -175,12 +174,14 @@ pub fn monkey_business(input: &str) -> u32 {
         .map(|m| m.expect("This should produce a valid Monkey"))
         .collect();
 
-    for _ in 0..20 {
+    let modulo: usize = monkeys.iter().map(|m| m.test_mod).product();
+
+    for _ in 0..n_rounds {
         for i in 0..monkeys.len() {
             let (left, big_right) = monkeys.split_at_mut(i);
             let (monkey, right) = big_right.split_at_mut(1);
             let mut other_monkey: &mut Monkey;
-            while let Some(ThrownItem { item, to_monkey }) = monkey[0].inspect_next() {
+            while let Some(ThrownItem { item, to_monkey }) = monkey[0].inspect_next(modulo) {
                 if to_monkey < i {
                     other_monkey = &mut left[to_monkey]
                 } else {
@@ -192,7 +193,7 @@ pub fn monkey_business(input: &str) -> u32 {
         }
     }
 
-    let mut inspections: Vec<_> = monkeys.iter().map(|m| m.num_inspections).collect();
+    let mut inspections: Vec<_> = monkeys.iter().map(|m| m.num_inspections as usize).collect();
     inspections.sort();
     inspections.reverse();
     inspections[0..=1].iter().product()
