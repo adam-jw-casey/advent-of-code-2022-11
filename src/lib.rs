@@ -1,86 +1,88 @@
 use sscanf::sscanf;
 use sscanf::RegexRepresentation;
-use std::str::FromStr;
 use std::num::ParseIntError;
+use std::str::FromStr;
 
 type Item = u32;
 
-enum Op{
+enum Op {
     Times,
-    Plus
+    Plus,
 }
 
-impl Op{
-    fn on(&self, item1: Item, item2: Item) -> Item{
-        match self{
+impl Op {
+    fn on(&self, item1: Item, item2: Item) -> Item {
+        match self {
             Op::Times => item1 * item2,
-            Op::Plus  => item1 + item2
+            Op::Plus => item1 + item2,
         }
     }
 }
 
-impl RegexRepresentation for Op{
+impl RegexRepresentation for Op {
     const REGEX: &'static str = r"[*+]";
 }
 
-impl FromStr for Op{
+impl FromStr for Op {
     type Err = std::io::Error;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err>{
-        match s{
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             "*" => Ok(Op::Times),
             "+" => Ok(Op::Plus),
-            x   => Err(std::io::Error::new(std::io::ErrorKind::Other, format!("Invalid operation {x}")))
+            x => Err(std::io::Error::new(
+                std::io::ErrorKind::Other,
+                format!("Invalid operation {x}"),
+            )),
         }
     }
 }
 
-
-enum Expr{
+enum Expr {
     Num(Item),
-    Old
+    Old,
 }
 
-impl Expr{
-    pub fn or(&self, old: Item) -> Item{
-        match self{
+impl Expr {
+    pub fn or(&self, old: Item) -> Item {
+        match self {
             Expr::Num(item) => *item,
-            Expr::Old    => old
+            Expr::Old => old,
         }
     }
 }
 
-impl RegexRepresentation for Expr{
+impl RegexRepresentation for Expr {
     const REGEX: &'static str = r"old|\d+";
 }
 
-impl FromStr for Expr{
+impl FromStr for Expr {
     type Err = ParseIntError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err>{
-        Ok(match s{
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(match s {
             "old" => Expr::Old,
-            x     => Expr::Num(x.parse::<Item>()?)
+            x => Expr::Num(x.parse::<Item>()?),
         })
     }
 }
 
-struct ThrownItem{
+struct ThrownItem {
     item: Item,
-    to_monkey: usize
+    to_monkey: usize,
 }
 
-struct Monkey{
+struct Monkey {
     items: Vec<Item>,
     operation: Box<dyn Fn(Item) -> Item>,
     test_mod: u32,
     num_inspections: u32,
     true_monkey_index: usize,
-    false_monkey_index: usize
+    false_monkey_index: usize,
 }
 
-impl Monkey{
-    pub fn new(instring: &str) -> Result<Self, sscanf::Error>{
+impl Monkey {
+    pub fn new(instring: &str) -> Result<Self, sscanf::Error> {
         let (
                 _,
                 items_str,
@@ -93,31 +95,36 @@ impl Monkey{
             "Monkey {usize}:\n  Starting items: {str}\n  Operation: new = {Expr} {Op} {Expr}\n  Test: divisible by {u32}\n    If true: throw to monkey {usize}\n    If false: throw to monkey {usize}\n\n"
         )?;
 
-        Ok(Monkey{
-            items: items_str.split(", ").map(str::parse::<Item>).map(Result::unwrap).collect(),
-            operation: Box::new(move |old: Item| {op.on(expr1.or(old), expr2.or(old))}),
+        Ok(Monkey {
+            items: items_str
+                .split(", ")
+                .map(str::parse::<Item>)
+                .map(Result::unwrap)
+                .collect(),
+            operation: Box::new(move |old: Item| op.on(expr1.or(old), expr2.or(old))),
             test_mod: test_mod,
             num_inspections: 0,
             true_monkey_index: true_monkey,
-            false_monkey_index: false_monkey
+            false_monkey_index: false_monkey,
         })
     }
 
-    pub fn inspect_next(&mut self) -> Option<ThrownItem>{
+    pub fn inspect_next(&mut self) -> Option<ThrownItem> {
         let old = self.items.pop()?;
         let new = (self.operation)(old);
 
         self.num_inspections += 1;
 
-        Some(ThrownItem{
-                item: new,
-                to_monkey: match old % self.test_mod == 0{
-                    true  => self.true_monkey_index,
-                    false => self.false_monkey_index
-                }})
+        Some(ThrownItem {
+            item: new,
+            to_monkey: match old % self.test_mod == 0 {
+                true => self.true_monkey_index,
+                false => self.false_monkey_index,
+            },
+        })
     }
 
-    pub fn catch(&mut self, item: Item){
+    pub fn catch(&mut self, item: Item) {
         self.items.push(item);
     }
 }
@@ -159,9 +166,8 @@ impl Monkey{
 ///         "    If false: throw to monkey 1"
 /// )));
 /// ```
-pub fn monkey_business(input: &str) -> usize{
-    let monkeys: Vec<Monkey> = 
-        input
+pub fn monkey_business(input: &str) -> usize {
+    let monkeys: Vec<Monkey> = input
         .split("\n\n")
         .map(Monkey::new)
         .map(Result::unwrap)
